@@ -5,8 +5,8 @@ package main
 
 import (
 	"fmt"
-		"os"
-			"text/tabwriter"
+	"os"
+	"text/tabwriter"
 
 	"github.com/moov-io/iso8583"
 )
@@ -28,7 +28,7 @@ var rawMessages []string = []string{
 func main() {
 	for _, rawMsg := range rawMessages {
 		fmt.Printf("Raw Message = %s\n", rawMsg)
-		
+
 		tw := tabwriter.NewWriter(os.Stdout, 2, 2, 1, ' ', 0)
 
 		msg := iso8583.NewMessage(Spec1)
@@ -45,12 +45,12 @@ func main() {
 				continue
 			}
 
-			field := msg.GetField(pos) 
+			field := msg.GetField(pos)
 
 			fmt.Fprintf(tw, "%3d\t%s\t%s\n", pos, field.Spec().Description, value)
 		}
 		tw.Flush()
-		
+
 		fmt.Println()
 	}
 }
