@@ -128,6 +128,7 @@ func (fmr *FinancialMessageRequest) PrettyPrint() string {
 			fmt.Fprintln(tw)
 			continue
 		default:
+			fmt.Fprintln(tw, c.Format, "Unknown field type")
 			continue
 		}
 	}
