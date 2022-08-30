@@ -139,15 +139,169 @@ func (fmr *FinancialMessageRequest) PrettyPrint() string {
 }
 
 type FinancialMessageResponse struct {
-	MTI                                *field.String  `index:"0"`
-	PrimaryAccountNumber               *field.String  `index:"2"`
-	ProcessingCode                     *field.String  `index:"3"`
-	TransactionAmount                  *field.Numeric `index:"4"`
-	TransmissionDateTime               *field.String  `index:"7"`
-	STAN                               *field.String  `index:"11"`
-	LocalTransactionTime               *field.String  `index:"12"`
-	CaptureDate                        *field.String  `index:"17"`
-	RetrievalReferenceNumber           *field.String  `index:"37"`
-	CardAcceptorTerminalIdentification *field.String  `index:"41"`
-	TransactionCurrencyCode            *field.String  `index:"49"`
+	MTI                                    *field.String  `index:"0"`
+	PrimaryAccountNumber                   *field.Numeric `index:"2"`
+	ProcessingCode                         *field.String  `index:"3"`
+	TransactionAmount                      *field.Numeric `index:"4"`
+	TransmissionDateTime                   *field.String  `index:"7"`
+	STAN                                   *field.Numeric `index:"11"`
+	LocalTransactionTime                   *field.String  `index:"12"`
+	LocalTransactionDate                   *field.String  `index:"13"`
+	SettlementDate                         *field.String  `index:"15"`
+	CaptureDate                            *field.String  `index:"17"`
+	PointOfServiceConditionCode            *field.String  `index:"25"`
+	AcquiringInstitutionIdentificationCode *field.String  `index:"32"`
+	RetrievalReferenceNumber               *field.String  `index:"37"`
+	AuthorizationIdentificationResponse    *field.String  `index:"38"`
+	ResponseCode                           *field.String  `index:"39"`
+	CardAcceptorTerminalIdentification     *field.String  `index:"41"`
+	AdditionalData                         *field.String  `index:"48"`
+	TransactionCurrencyCode                *field.String  `index:"49"`
+	AdditionalAmounts                      *field.String  `index:"54"`
+	LoyaltyData                            *field.String  `index:"58"`
+	POSAdditionalData                      *field.String  `index:"63"`
+}
+
+type ReversalMessageRequest struct {
+	MTI                                    *field.String  `index:"0"`
+	PrimaryAccountNumber                   *field.Numeric `index:"2"`
+	ProcessingCode                         *field.String  `index:"3"`
+	TransactionAmount                      *field.Numeric `index:"4"`
+	TransmissionDateTime                   *field.String  `index:"7"`
+	STAN                                   *field.Numeric `index:"11"`
+	LocalTransactionTime                   *field.String  `index:"12"`
+	LocalTransactionDate                   *field.String  `index:"13"`
+	SettlementDate                         *field.String  `index:"15"`
+	CaptureDate                            *field.String  `index:"17"`
+	PointOfServiceConditionCode            *field.String  `index:"25"`
+	AcquiringInstitutionIdentificationCode *field.String  `index:"32"`
+	RetrievalReferenceNumber               *field.String  `index:"37"`
+	AuthorizationIdentificationResponse    *field.String  `index:"38"`
+	ResponseCode                           *field.String  `index:"39"`
+	CardAcceptorTerminalIdentification     *field.String  `index:"41"`
+	CardAcceptorNameLocation               *field.String  `index:"43"`
+	AdditionalData                         *field.String  `index:"48"`
+	TransactionCurrencyCode                *field.String  `index:"49"`
+	AdditionalAmounts                      *field.String  `index:"54"`
+	POSAdditionalData                      *field.String  `index:"63"`
+}
+
+func (rmr *ReversalMessageRequest) PrettyPrint() string {
+	var builder strings.Builder
+	tw := tabwriter.NewWriter(&builder, 2, 2, 1, ' ', 0)
+
+	cases := []struct {
+		Item   field.Field
+		Format string
+	}{
+		{
+			Item:   rmr.MTI,
+			Format: "MTI\t%s",
+		},
+		{
+			Item:   rmr.PrimaryAccountNumber,
+			Format: "PrimaryAccountNumber\t%d",
+		},
+		{
+			Item:   rmr.ProcessingCode,
+			Format: "ProcessingCode\t%s",
+		},
+		{
+			Item:   rmr.TransactionAmount,
+			Format: "TransactionAmount\t%d",
+		},
+		{
+			Item:   rmr.TransmissionDateTime,
+			Format: "TransmissionDateTime\t%s",
+		},
+		{
+			Item:   rmr.STAN,
+			Format: "STAN\t%d",
+		},
+		{
+			Item:   rmr.LocalTransactionTime,
+			Format: "LocalTransactionTime\t%s",
+		},
+		{
+			Item:   rmr.LocalTransactionDate,
+			Format: "LocalTransactionDate\t%s",
+		},
+		{
+			Item:   rmr.SettlementDate,
+			Format: "SettlementDate\t%s",
+		},
+		{
+			Item:   rmr.CaptureDate,
+			Format: "CaptureDate\t%s",
+		},
+		{
+			Item:   rmr.PointOfServiceConditionCode,
+			Format: "PointOfServiceConditionCode\t%s",
+		},
+		{
+			Item:   rmr.AcquiringInstitutionIdentificationCode,
+			Format: "AcquiringInstitutionIdentificationCode\t%s",
+		},
+		{
+			Item:   rmr.RetrievalReferenceNumber,
+			Format: "RetrievalReferenceNumber\t%s",
+		},
+		{
+			Item:   rmr.AuthorizationIdentificationResponse,
+			Format: "AuthorizationIdentificationResponse\t%s",
+		},
+		{
+			Item:   rmr.ResponseCode,
+			Format: "ResponseCode\t%s",
+		},
+		{
+			Item:   rmr.CardAcceptorTerminalIdentification,
+			Format: "CardAcceptorTerminalIdentification\t%s",
+		},
+		{
+			Item:   rmr.CardAcceptorNameLocation,
+			Format: "CardAcceptorNameLocation\t%s",
+		},
+		{
+			Item:   rmr.AdditionalData,
+			Format: "AdditionalData\t%s",
+		},
+		{
+			Item:   rmr.TransactionCurrencyCode,
+			Format: "TransactionCurrencyCode\t%s",
+		},
+		{
+			Item:   rmr.AdditionalAmounts,
+			Format: "AdditionalAmounts\t%s",
+		},
+		{
+			Item:   rmr.POSAdditionalData,
+			Format: "POSAdditionalData\t%s",
+		},
+	}
+
+	for _, c := range cases {
+		if c.Item == nil || reflect.ValueOf(c.Item).IsNil() {
+			fmt.Fprintln(tw, c.Format, "Field not found")
+			continue
+		}
+
+		switch item := c.Item.(type) {
+		case *field.String:
+			fmt.Fprintf(tw, c.Format, item.Value)
+			fmt.Fprintln(tw)
+			continue
+		case *field.Numeric:
+			fmt.Fprintf(tw, c.Format, item.Value)
+			fmt.Fprintln(tw)
+			continue
+		default:
+			fmt.Fprintln(tw, c.Format, "Unknown field type")
+			continue
+		}
+	}
+
+	tw.Flush()
+
+	return builder.String()
 }
