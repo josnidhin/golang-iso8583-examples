@@ -21,7 +21,6 @@ var Spec1 *iso8583.MessageSpec = &iso8583.MessageSpec{
 			Pref:        prefix.ASCII.Fixed,
 		}),
 		1: field.NewBitmap(&field.Spec{
-			Length:      16,
 			Description: "Bitmap",
 			Enc:         encoding.BytesToASCIIHex,
 			Pref:        prefix.Hex.Fixed,
@@ -160,7 +159,7 @@ var Spec1 *iso8583.MessageSpec = &iso8583.MessageSpec{
 			Pref:        prefix.ASCII.Fixed,
 		}),
 		90: field.NewString(&field.Spec{
-			Length:      42,
+			Length:      99,
 			Description: "Original Data Elements",
 			Enc:         encoding.ASCII,
 			Pref:        prefix.ASCII.Fixed,
