@@ -184,6 +184,7 @@ type ReversalMessageRequest struct {
 	TransactionCurrencyCode                *field.String  `index:"49"`
 	AdditionalAmounts                      *field.String  `index:"54"`
 	POSAdditionalData                      *field.String  `index:"63"`
+	OriginalDataElements                   *field.String  `index:"90"`
 }
 
 func (rmr *ReversalMessageRequest) PrettyPrint() string {
@@ -304,4 +305,115 @@ func (rmr *ReversalMessageRequest) PrettyPrint() string {
 	tw.Flush()
 
 	return builder.String()
+}
+
+type ReversalMessageResponse struct {
+	MTI                                    *field.String  `index:"0"`
+	PrimaryAccountNumber                   *field.Numeric `index:"2"`
+	ProcessingCode                         *field.String  `index:"3"`
+	TransactionAmount                      *field.Numeric `index:"4"`
+	TransmissionDateTime                   *field.String  `index:"7"`
+	STAN                                   *field.Numeric `index:"11"`
+	SettlementDate                         *field.String  `index:"15"`
+	CaptureDate                            *field.String  `index:"17"`
+	PointOfServiceConditionCode            *field.String  `index:"25"`
+	AcquiringInstitutionIdentificationCode *field.String  `index:"32"`
+	RetrievalReferenceNumber               *field.String  `index:"37"`
+	ResponseCode                           *field.String  `index:"39"`
+	CardAcceptorTerminalIdentification     *field.String  `index:"41"`
+	TransactionCurrencyCode                *field.String  `index:"49"`
+	AdditionalAmounts                      *field.String  `index:"54"`
+	POSAdditionalData                      *field.String  `index:"63"`
+	OriginalDataElements                   *field.String  `index:"90"`
+}
+
+type EchoMessageRequest struct {
+	MTI                              *field.String  `index:"0"`
+	Bitmap                           *field.Bitmap  `index:"1"`
+	TransmissionDateTime             *field.String  `index:"7"`
+	STAN                             *field.Numeric `index:"11"`
+	SettlementDate                   *field.String  `index:"15"`
+	AdditionalData                   *field.String  `index:"48"`
+	NetworkManagementInformationCode *field.String  `index:"70"`
+}
+
+func (emr *EchoMessageRequest) PrettyPrint() string {
+	var builder strings.Builder
+	tw := tabwriter.NewWriter(&builder, 2, 2, 1, ' ', 0)
+
+	cases := []struct {
+		Item   field.Field
+		Format string
+	}{
+		{
+			Item:   emr.MTI,
+			Format: "MTI\t%s",
+		},
+		{
+			Item:   emr.Bitmap,
+			Format: "Bitmap\t%s",
+		},
+		{
+			Item:   emr.TransmissionDateTime,
+			Format: "TransmissionDateTime\t%s",
+		},
+		{
+			Item:   emr.STAN,
+			Format: "STAN\t%d",
+		},
+		{
+			Item:   emr.SettlementDate,
+			Format: "SettlementDate\t%s",
+		},
+		{
+			Item:   emr.AdditionalData,
+			Format: "AdditionalData\t%s",
+		},
+		{
+			Item:   emr.NetworkManagementInformationCode,
+			Format: "NetworkManagementInformationCode\t%s",
+		},
+	}
+
+	for _, c := range cases {
+		if c.Item == nil || reflect.ValueOf(c.Item).IsNil() {
+			fmt.Fprintln(tw, c.Format, "Field not found")
+			continue
+		}
+
+		switch item := c.Item.(type) {
+		case *field.String:
+			fmt.Fprintf(tw, c.Format, item.Value)
+			fmt.Fprintln(tw)
+			continue
+		case *field.Numeric:
+			fmt.Fprintf(tw, c.Format, item.Value)
+			fmt.Fprintln(tw)
+			continue
+		case *field.Bitmap:
+			strVal, err := item.String()
+			if err != nil {
+				strVal = err.Error()
+			}
+			fmt.Fprintf(tw, c.Format, strVal)
+			fmt.Fprintln(tw)
+			continue
+		default:
+			fmt.Fprintln(tw, c.Format, "Unknown field type")
+			continue
+		}
+	}
+
+	tw.Flush()
+
+	return builder.String()
+}
+
+type EchoResponse struct {
+	MTI                              *field.String  `index:"0"`
+	TransmissionDateTime             *field.String  `index:"7"`
+	STAN                             *field.Numeric `index:"11"`
+	SettlementDate                   *field.String  `index:"15"`
+	ResponseCode                     *field.String  `index:"39"`
+	NetworkManagementInformationCode *field.String  `index:"70"`
 }
