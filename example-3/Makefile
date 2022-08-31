@@ -2,7 +2,7 @@
 # @author Jose Nidhin
 #
 GO_SRC_FILES := $(shell find . -type f -name '*.go')
-GO_SRC_MAIN := $(shell ls *.go)
+GO_SRC_MAIN := $(shell find . -type f -name '*.go' ! -name '*_test.go')
 
 all: tidy vet fmt simplify test clean run 
 
