@@ -15,6 +15,8 @@ import (
 	"github.com/pkg/errors"
 )
 
+const Spec1HeaderSize = 12
+
 var Spec1 *iso8583.MessageSpec = &iso8583.MessageSpec{
 	Name: "ISO 8583 ASCII Test Spec 1",
 	Fields: map[int]field.Field{
