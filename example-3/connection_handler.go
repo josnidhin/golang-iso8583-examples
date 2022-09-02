@@ -33,6 +33,8 @@ type ConnectionHandler struct {
 	shutdownNotifier chan int
 	reqCh            chan []byte
 	wg               *sync.WaitGroup
+	isClosingMutex   sync.Mutex
+	isClosing        bool
 }
 
 func NewConnectionHandler(rwc io.ReadWriteCloser,
@@ -59,6 +61,15 @@ func NewConnectionHandler(rwc io.ReadWriteCloser,
 }
 
 func (ch *ConnectionHandler) Close() error {
+	ch.isClosingMutex.Lock()
+	if ch.isClosing {
+		ch.isClosingMutex.Unlock()
+		return nil
+	}
+
+	ch.isClosing = true
+	ch.isClosingMutex.Unlock()
+
 	close(ch.shutdownNotifier)
 
 	ch.wg.Wait()
@@ -92,28 +103,25 @@ func (ch *ConnectionHandler) readLoop() {
 	reader := bufio.NewReader(ch.rwc)
 
 	for {
-		select {
-		case <-ch.shutdownNotifier:
-			return
-		default:
-			msgLen, err = ch.msgLenReader(reader)
-			if err != nil {
-				logger.Printf("%s: reading msg len failed - %v", fnName, err)
-				return
-			}
-
-			rawMsg := make([]byte, msgLen)
-			_, err = io.ReadFull(reader, rawMsg)
-			if err != nil {
-				logger.Printf("%s: reading full msg failed - %v", fnName, err)
-				return
-			}
-
-			logger.Printf("%s: raw message - %s", fnName, string(rawMsg))
-
-			ch.reqCh <- rawMsg
+		msgLen, err = ch.msgLenReader(reader)
+		if err != nil {
+			logger.Printf("%s: reading msg len failed - %v", fnName, err)
+			break
 		}
+
+		rawMsg := make([]byte, msgLen)
+		_, err = io.ReadFull(reader, rawMsg)
+		if err != nil {
+			logger.Printf("%s: reading full msg failed - %v", fnName, err)
+			break
+		}
+
+		logger.Printf("%s: raw message - %s", fnName, string(rawMsg))
+
+		ch.reqCh <- rawMsg
 	}
+
+	ch.handleConnectionError(err)
 }
 
 func (ch *ConnectionHandler) requestListener() {
@@ -133,4 +141,16 @@ func (ch *ConnectionHandler) requestHandler(rawMsg []byte) {
 	msg := iso8583.NewMessage(ch.spec)
 	msg.Unpack(rawMsg[ch.headerSize:])
 	ch.inMsgHandler(msg)
+}
+
+func (ch *ConnectionHandler) handleConnectionError(err error) {
+	ch.isClosingMutex.Lock()
+	if err == nil || ch.isClosing {
+		ch.isClosingMutex.Unlock()
+		return
+	}
+
+	ch.isClosingMutex.Unlock()
+
+	ch.Close()
 }
