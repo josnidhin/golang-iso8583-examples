@@ -23,7 +23,7 @@ type MessageLengthWriter func(w io.Writer, length int) (int, error)
 // InboundMessageHandler will be called whenever a message is received
 type InboundMessageHandler func(*iso8583.Message)
 
-type Connection struct {
+type ConnectionHandler struct {
 	rwc              io.ReadWriteCloser
 	headerSize       int
 	spec             *iso8583.MessageSpec
@@ -35,13 +35,13 @@ type Connection struct {
 	wg               *sync.WaitGroup
 }
 
-func NewConnection(rwc io.ReadWriteCloser,
+func NewConnectionHandler(rwc io.ReadWriteCloser,
 	headerSize int,
 	spec *iso8583.MessageSpec,
 	mlReader MessageLengthReader,
 	mlWriter MessageLengthWriter,
-	inMsgHandler InboundMessageHandler) (*Connection, error) {
-	conn := &Connection{
+	inMsgHandler InboundMessageHandler) (*ConnectionHandler, error) {
+	ch := &ConnectionHandler{
 		rwc:              rwc,
 		headerSize:       headerSize,
 		spec:             spec,
@@ -53,17 +53,17 @@ func NewConnection(rwc io.ReadWriteCloser,
 		wg:               &sync.WaitGroup{},
 	}
 
-	conn.run()
+	ch.run()
 
-	return conn, nil
+	return ch, nil
 }
 
-func (conn *Connection) Close() error {
-	close(conn.shutdownNotifier)
+func (ch *ConnectionHandler) Close() error {
+	close(ch.shutdownNotifier)
 
-	conn.wg.Wait()
+	ch.wg.Wait()
 
-	err := conn.rwc.Close()
+	err := ch.rwc.Close()
 	if err != nil {
 		return errors.Wrap(err, "connection close error")
 	}
@@ -71,66 +71,66 @@ func (conn *Connection) Close() error {
 	return nil
 }
 
-func (conn *Connection) Done() {
-	conn.wg.Wait()
+func (ch *ConnectionHandler) Done() {
+	ch.wg.Wait()
 	return
 }
 
-func (conn *Connection) run() {
-	go conn.readLoop()
-	go conn.requestListener()
+func (ch *ConnectionHandler) run() {
+	go ch.readLoop()
+	go ch.requestListener()
 }
 
-func (conn *Connection) readLoop() {
+func (ch *ConnectionHandler) readLoop() {
 	var err error
 	var msgLen int
-	fnName := "Connection.readLoop"
+	fnName := "ConnectionHandler.readLoop"
 
-	conn.wg.Add(1)
-	defer conn.wg.Done()
+	ch.wg.Add(1)
+	defer ch.wg.Done()
 
-	reader := bufio.NewReader(conn.rwc)
+	reader := bufio.NewReader(ch.rwc)
 
 	for {
 		select {
-		case <-conn.shutdownNotifier:
+		case <-ch.shutdownNotifier:
 			return
 		default:
-			msgLen, err = conn.msgLenReader(reader)
+			msgLen, err = ch.msgLenReader(reader)
 			if err != nil {
-				//logger.Printf("%s: reading msg len failed - %v", fnName, err)
-				break
+				logger.Printf("%s: reading msg len failed - %v", fnName, err)
+				return
 			}
 
 			rawMsg := make([]byte, msgLen)
 			_, err = io.ReadFull(reader, rawMsg)
 			if err != nil {
 				logger.Printf("%s: reading full msg failed - %v", fnName, err)
-				break
+				return
 			}
 
 			logger.Printf("%s: raw message - %s", fnName, string(rawMsg))
 
-			conn.reqCh <- rawMsg
+			ch.reqCh <- rawMsg
 		}
 	}
 }
 
-func (conn *Connection) requestListener() {
-	fnName := "Connection.requestListener"
+func (ch *ConnectionHandler) requestListener() {
+	fnName := "ConnectionHandler.requestListener"
 	for {
 		select {
-		case rawMsg := <-conn.reqCh:
-			go conn.requestHandler(rawMsg)
-		case <-conn.shutdownNotifier:
+		case rawMsg := <-ch.reqCh:
+			go ch.requestHandler(rawMsg)
+		case <-ch.shutdownNotifier:
 			logger.Printf("%s: shutdown initialized", fnName)
 			return
 		}
 	}
 }
 
-func (conn *Connection) requestHandler(rawMsg []byte) {
-	msg := iso8583.NewMessage(conn.spec)
-	msg.Unpack(rawMsg[conn.headerSize:])
-	conn.inMsgHandler(msg)
+func (ch *ConnectionHandler) requestHandler(rawMsg []byte) {
+	msg := iso8583.NewMessage(ch.spec)
+	msg.Unpack(rawMsg[ch.headerSize:])
+	ch.inMsgHandler(msg)
 }
