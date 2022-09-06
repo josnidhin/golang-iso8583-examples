@@ -110,16 +110,15 @@ func startServer(shutdownNotifier <-chan struct{}, wg *sync.WaitGroup, address s
 		}
 
 		logger.Printf("%s: new connection", fnName)
-		conn.SetKeepAlive(true)
-		conn.SetKeepAlivePeriod(60 * time.Second)
 
 		connHandler, err := NewConnectionHandler(conn, Spec1HeaderSize, Spec1, MsgLenReader, MsgLenWriter, inMsgHandler)
+		connHandler.Start()
 		if err != nil {
 			logger.Fatalf("%s: error creating connection handler - %v", fnName, err)
 		}
 
 		wg.Add(1)
-		go func(conn *net.TCPConn, connHandler *ConnectionHandler) {
+		go func(connHandler *ConnectionHandler) {
 			defer wg.Done()
 			<-shutdownNotifier
 
@@ -129,7 +128,7 @@ func startServer(shutdownNotifier <-chan struct{}, wg *sync.WaitGroup, address s
 			}
 
 			connHandler.Done()
-		}(conn, connHandler)
+		}(connHandler)
 	}
 }
 
@@ -191,6 +190,9 @@ loop:
 
 	defer tcpConn.Close()
 	defer ticker.Stop()
+
+	tcpConn.SetKeepAlive(true)
+	tcpConn.SetKeepAlivePeriod(60 * time.Second)
 
 	for {
 		select {
