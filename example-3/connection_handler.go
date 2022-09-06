@@ -30,7 +30,7 @@ type ConnectionHandler struct {
 	msgLenReader     MessageLengthReader
 	msgLenWriter     MessageLengthWriter
 	inMsgHandler     InboundMessageHandler
-	shutdownNotifier chan int
+	shutdownNotifier chan struct{}
 	reqCh            chan []byte
 	wg               *sync.WaitGroup
 	isClosingMutex   sync.Mutex
@@ -50,14 +50,16 @@ func NewConnectionHandler(rwc io.ReadWriteCloser,
 		msgLenReader:     mlReader,
 		msgLenWriter:     mlWriter,
 		inMsgHandler:     inMsgHandler,
-		shutdownNotifier: make(chan int),
+		shutdownNotifier: make(chan struct{}),
 		reqCh:            make(chan []byte),
 		wg:               &sync.WaitGroup{},
 	}
 
-	ch.run()
-
 	return ch, nil
+}
+
+func (ch *ConnectionHandler) Start() {
+	ch.run()
 }
 
 func (ch *ConnectionHandler) Close() error {
@@ -92,13 +94,12 @@ func (ch *ConnectionHandler) run() {
 	go ch.requestListener()
 }
 
+// readLoop reads the data from the connection and sends it on the request
+// channel for further processing
 func (ch *ConnectionHandler) readLoop() {
 	var err error
 	var msgLen int
 	fnName := "ConnectionHandler.readLoop"
-
-	ch.wg.Add(1)
-	defer ch.wg.Done()
 
 	reader := bufio.NewReader(ch.rwc)
 
@@ -124,6 +125,8 @@ func (ch *ConnectionHandler) readLoop() {
 	ch.handleConnectionError(err)
 }
 
+// requestListener reads the data from the request channel and invokes the
+// requestHandler in a goroutine
 func (ch *ConnectionHandler) requestListener() {
 	fnName := "ConnectionHandler.requestListener"
 	for {
