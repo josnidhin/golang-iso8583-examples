@@ -5,11 +5,16 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"io"
 	"sync"
 
 	"github.com/moov-io/iso8583"
 	"github.com/pkg/errors"
+)
+
+var (
+	ClosedError = errors.New("connection handler closed")
 )
 
 // MessageLengthReader reads message header from the provided reader interface
@@ -87,6 +92,42 @@ func (ch *ConnectionHandler) Close() error {
 func (ch *ConnectionHandler) Done() {
 	ch.wg.Wait()
 	return
+}
+
+func (ch *ConnectionHandler) Send(msg *iso8583.Message) error {
+	ch.wg.Add(1)
+	defer ch.wg.Done()
+
+	ch.isClosingMutex.Lock()
+	if ch.isClosing {
+		ch.isClosingMutex.Unlock()
+		return ClosedError
+	}
+
+	ch.isClosingMutex.Unlock()
+
+	packed, err := msg.Pack()
+	if err != nil {
+		return errors.Wrap(err, "packing iso8583 message failed")
+	}
+
+	var buf bytes.Buffer
+	_, err = ch.msgLenWriter(&buf, len(packed))
+	if err != nil {
+		return errors.Wrap(err, "writing msg header to buffer failed")
+	}
+
+	_, err = buf.Write(packed)
+	if err != nil {
+		return errors.Wrap(err, "writing packed msg to buffer failed")
+	}
+
+	_, err = ch.rwc.Write(buf.Bytes())
+	if err != nil {
+		return errors.Wrap(err, "writing message to connection failed")
+	}
+
+	return nil
 }
 
 func (ch *ConnectionHandler) run() {
