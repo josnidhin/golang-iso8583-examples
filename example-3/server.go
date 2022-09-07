@@ -11,8 +11,26 @@ import (
 	"text/tabwriter"
 
 	"github.com/moov-io/iso8583"
+	"github.com/moov-io/iso8583/field"
 	"github.com/pkg/errors"
 )
+
+var sampleFMR = FinancialMessageResponse{
+	MTI:                                 field.NewStringValue("0210"),
+	PrimaryAccountNumber:                field.NewNumericValue(8110099418),
+	ProcessingCode:                      field.NewStringValue("000000"),
+	TransactionAmount:                   field.NewNumericValue(10000),
+	TransmissionDateTime:                field.NewStringValue("0313102842"),
+	STAN:                                field.NewNumericValue(488759),
+	LocalTransactionTime:                field.NewStringValue("102641"),
+	LocalTransactionDate:                field.NewStringValue("0313"),
+	CaptureDate:                         field.NewStringValue("0313"),
+	RetrievalReferenceNumber:            field.NewStringValue("000000401991"),
+	AuthorizationIdentificationResponse: field.NewStringValue("123456"),
+	ResponseCode:                        field.NewStringValue("00"),
+	CardAcceptorTerminalIdentification:  field.NewStringValue("10MON50GAZOX   N"),
+	TransactionCurrencyCode:             field.NewStringValue("484"),
+}
 
 type Server struct {
 	tcpAddr          *net.TCPAddr
@@ -115,9 +133,22 @@ func (s *Server) reqMsgReadLoop() {
 }
 
 func (s *Server) reqMsgHandler(msg *iso8583.Message) {
+	fnName := "Server.reqMsgHandler"
+
 	s.wg.Add(1)
 	defer s.wg.Done()
+
 	s.printISOMsg(msg)
+
+	resMsg := iso8583.NewMessage(Spec1)
+	err := resMsg.Marshal(&sampleFMR)
+
+	if err != nil {
+		logger.Printf("%s: sample response creation failed - %v", fnName, err)
+		return
+	}
+
+	s.resMsgCh <- resMsg
 }
 
 func (s *Server) printISOMsg(msg *iso8583.Message) {
