@@ -17,7 +17,7 @@ var sampleRawInput []byte
 
 func init() {
 	var err error
-	fnName := "main.init"
+	fnName := "client.init"
 
 	sampleRawInput, err = hex.DecodeString(hexStr)
 	if err != nil {
@@ -52,7 +52,7 @@ func (c *Client) Start() {
 	var tcpConn *net.TCPConn
 	var err error
 
-	fnName := "client.Start"
+	fnName := "Client.Start"
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
@@ -101,7 +101,7 @@ loop:
 }
 
 func (c *Client) Shutdown() {
-	fnName := "client.Shutdown"
+	fnName := "Client.Shutdown"
 	logger.Printf("%s: graceful shutdown initialised", fnName)
 
 	close(c.shutdownNotifier)
