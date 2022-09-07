@@ -8,6 +8,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/moov-io/iso8583"
 	"github.com/pkg/errors"
 )
 
@@ -83,6 +84,8 @@ loop:
 	tcpConn.SetKeepAlive(true)
 	tcpConn.SetKeepAlivePeriod(60 * time.Second)
 
+	go c.readResp(tcpConn)
+
 	err = nil
 	for {
 		select {
@@ -105,4 +108,29 @@ func (c *Client) Shutdown() {
 	logger.Printf("%s: graceful shutdown initialised", fnName)
 
 	close(c.shutdownNotifier)
+}
+
+func (c *Client) readResp(tcpConn *net.TCPConn) {
+	fnName := "Client.readResp"
+
+	reqCh := make(chan *iso8583.Message)
+	go func() {
+		for {
+			// discard
+			<-reqCh
+		}
+	}()
+
+	resCh := make(chan *iso8583.Message)
+
+	connHandler, err := NewConnectionHandler(tcpConn, Spec1HeaderSize, Spec1, MsgLenReader, MsgLenWriter, reqCh, resCh)
+	if err != nil {
+		logger.Printf("%s: error creating connection handler - %v", fnName, err)
+	}
+
+	connHandler.Start()
+
+	<-c.shutdownNotifier
+
+	connHandler.Close()
 }
