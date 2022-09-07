@@ -101,10 +101,11 @@ func (s *Server) connListenLoop() {
 		logger.Printf("%s: new connection", fnName)
 
 		connHandler, err := NewConnectionHandler(conn, Spec1HeaderSize, Spec1, MsgLenReader, MsgLenWriter, s.reqMsgCh, s.resMsgCh)
-		connHandler.Start()
 		if err != nil {
 			logger.Fatalf("%s: error creating connection handler - %v", fnName, err)
 		}
+
+		connHandler.Start()
 
 		s.wg.Add(1)
 		go func(connHandler *ConnectionHandler) {
