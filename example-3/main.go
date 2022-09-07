@@ -5,16 +5,23 @@ package main
 
 import (
 	"encoding/hex"
+	"flag"
 	"fmt"
 	"net"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 	"text/tabwriter"
 	"time"
 
 	"github.com/moov-io/iso8583"
+)
+
+const (
+	clientMode = "client"
+	serverMode = "server"
 )
 
 const hexStr = "009d49534f303234303030303535303230303532333838303030303841303830303031303831313030393934313830303030303030313030303030333133313032383432343838373539313032363431303331333033313330303030303034303139393131304d4f4e353047415a4f582020204e456469736f6e203132333520202020202020202020204d6f6e746572726579202020204e4c204d58343834"
@@ -32,27 +39,39 @@ func init() {
 }
 
 func main() {
+	var mode string
+	flag.StringVar(&mode, "mode", serverMode, "choose the running mode eg: server, client")
+	flag.Parse()
+
+	mode = strings.ToLower(mode)
+
 	wg := &sync.WaitGroup{}
 	address := ":8080"
 	shutdownNotifier := make(chan struct{})
 
-	wg.Add(1)
 	go func() {
-		defer wg.Done()
 		signalHandler(shutdownNotifier)
 	}()
 
 	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		startServer(shutdownNotifier, wg, address)
-	}()
+	switch mode {
+	case serverMode:
+		go func() {
+			defer wg.Done()
+			startServer(shutdownNotifier, wg, address)
+		}()
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		startClient(shutdownNotifier, address)
-	}()
+	case clientMode:
+		go func() {
+			defer wg.Done()
+			startClient(shutdownNotifier, address)
+		}()
+
+	default:
+		wg.Done()
+		fmt.Printf("Unkown mode - %s\n", mode)
+		os.Exit(1)
+	}
 
 	wg.Wait()
 }
