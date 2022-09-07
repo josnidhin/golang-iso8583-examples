@@ -81,6 +81,9 @@ func (s *Server) Shutdown() {
 	close(s.shutdownNotifier)
 	s.tcpListener.Close()
 	s.wg.Wait()
+
+	close(s.reqMsgCh)
+	close(s.resMsgCh)
 }
 
 func (s *Server) connListenLoop() {
