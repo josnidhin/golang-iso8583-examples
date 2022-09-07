@@ -151,33 +151,6 @@ func startServer(shutdownNotifier <-chan struct{}, wg *sync.WaitGroup, address s
 	}
 }
 
-func inMsgHandler(msg *iso8583.Message) {
-	printISOMsg(msg)
-}
-
-func printISOMsg(msg *iso8583.Message) {
-	tw := tabwriter.NewWriter(os.Stdout, 2, 2, 1, ' ', 0)
-
-	for pos := 0; pos < 128; pos++ {
-		value, err := msg.GetString(pos)
-
-		if err != nil {
-			continue
-		}
-
-		if value == "" {
-			continue
-		}
-
-		field := msg.GetField(pos)
-
-		fmt.Fprintf(tw, "%3d\t%s\t%s\n", pos, field.Spec().Description, value)
-	}
-	tw.Flush()
-
-	fmt.Println()
-}
-
 func startClient(shutdownNotifier <-chan struct{}, address string) {
 	var tcpConn *net.TCPConn
 	fnName := "main.startClient"
@@ -224,4 +197,31 @@ loop:
 			}
 		}
 	}
+}
+
+func inMsgHandler(msg *iso8583.Message) {
+	printISOMsg(msg)
+}
+
+func printISOMsg(msg *iso8583.Message) {
+	tw := tabwriter.NewWriter(os.Stdout, 2, 2, 1, ' ', 0)
+
+	for pos := 0; pos < 128; pos++ {
+		value, err := msg.GetString(pos)
+
+		if err != nil {
+			continue
+		}
+
+		if value == "" {
+			continue
+		}
+
+		field := msg.GetField(pos)
+
+		fmt.Fprintf(tw, "%3d\t%s\t%s\n", pos, field.Spec().Description, value)
+	}
+	tw.Flush()
+
+	fmt.Println()
 }
