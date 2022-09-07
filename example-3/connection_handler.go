@@ -94,45 +94,10 @@ func (ch *ConnectionHandler) Done() {
 	return
 }
 
-func (ch *ConnectionHandler) Send(msg *iso8583.Message) error {
-	ch.wg.Add(1)
-	defer ch.wg.Done()
-
-	ch.isClosingMutex.Lock()
-	if ch.isClosing {
-		ch.isClosingMutex.Unlock()
-		return ClosedError
-	}
-
-	ch.isClosingMutex.Unlock()
-
-	packed, err := msg.Pack()
-	if err != nil {
-		return errors.Wrap(err, "packing iso8583 message failed")
-	}
-
-	var buf bytes.Buffer
-	_, err = ch.msgLenWriter(&buf, len(packed))
-	if err != nil {
-		return errors.Wrap(err, "writing msg header to buffer failed")
-	}
-
-	_, err = buf.Write(packed)
-	if err != nil {
-		return errors.Wrap(err, "writing packed msg to buffer failed")
-	}
-
-	_, err = ch.rwc.Write(buf.Bytes())
-	if err != nil {
-		return errors.Wrap(err, "writing message to connection failed")
-	}
-
-	return nil
-}
-
 func (ch *ConnectionHandler) run() {
 	go ch.readLoop()
 	go ch.requestListener()
+	go ch.sendLoop()
 }
 
 // readLoop reads the data from the connection and sends it on the request
@@ -169,10 +134,12 @@ func (ch *ConnectionHandler) readLoop() {
 // requestListener reads the data from the request channel and invokes the
 // requestHandler in a goroutine
 func (ch *ConnectionHandler) requestListener() {
+	var rawMsg []byte
 	fnName := "ConnectionHandler.requestListener"
+
 	for {
 		select {
-		case rawMsg := <-ch.reqCh:
+		case rawMsg = <-ch.reqCh:
 			go ch.requestHandler(rawMsg)
 		case <-ch.shutdownNotifier:
 			logger.Printf("%s: shutdown initialized", fnName)
@@ -185,6 +152,62 @@ func (ch *ConnectionHandler) requestHandler(rawMsg []byte) {
 	msg := iso8583.NewMessage(ch.spec)
 	msg.Unpack(rawMsg[ch.headerSize:])
 	ch.reqMsgCh <- msg
+}
+
+func (ch *ConnectionHandler) sendLoop() {
+	var msg *iso8583.Message
+	fnName := "ConnectionHandler.sendLoop"
+
+	for {
+		select {
+		case msg = <-ch.resMsgCh:
+			ch.sendHandler(msg)
+		case <-ch.shutdownNotifier:
+			logger.Printf("%s: shutdown initialized", fnName)
+			return
+		}
+	}
+}
+
+func (ch *ConnectionHandler) sendHandler(msg *iso8583.Message) {
+	fnName := "ConnectionHandler.sendHandler"
+
+	ch.wg.Add(1)
+	defer ch.wg.Done()
+
+	ch.isClosingMutex.Lock()
+	if ch.isClosing {
+		ch.isClosingMutex.Unlock()
+		logger.Printf("%s: connction handler is closing", fnName)
+		return
+	}
+
+	ch.isClosingMutex.Unlock()
+
+	packed, err := msg.Pack()
+	if err != nil {
+		logger.Printf("%s: packing iso8583 message failed - %v", fnName, err)
+		return
+	}
+
+	var buf bytes.Buffer
+	_, err = ch.msgLenWriter(&buf, len(packed))
+	if err != nil {
+		logger.Printf("%s: writing msg header to buffer failed - %v", fnName, err)
+		return
+	}
+
+	_, err = buf.Write(packed)
+	if err != nil {
+		logger.Printf("%s: writing packed msg to buffer failed - %v", fnName, err)
+		return
+	}
+
+	_, err = ch.rwc.Write(buf.Bytes())
+	if err != nil {
+		logger.Printf("%s: writing message to connection failed - %v", fnName, err)
+		return
+	}
 }
 
 func (ch *ConnectionHandler) handleConnectionError(err error) {
