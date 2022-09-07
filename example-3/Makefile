@@ -1,10 +1,11 @@
 #
 # @author Jose Nidhin
 #
+PROJECT_NAME := $(shell basename "$(PWD)")
 GO_SRC_FILES := $(shell find . -type f -name '*.go')
 GO_SRC_MAIN := $(shell find . -type f -name '*.go' ! -name '*_test.go')
 
-all: tidy vet fmt simplify test clean run 
+all: tidy vet fmt simplify test clean build
 
 .PHONY: vet
 vet:
@@ -31,6 +32,6 @@ clean:
 	go clean -x
 	rm -f cover.out coverage.html
 
-.PHONY: run
-run:
-	go run $(GO_SRC_MAIN)
+.PHONY: build
+build:
+	go build -v -o $(PROJECT_NAME) $(GO_SRC_MAIN)
