@@ -25,18 +25,16 @@ type MessageLengthReader func(r io.Reader) (int, error)
 // provided writer interface
 type MessageLengthWriter func(w io.Writer, length int) (int, error)
 
-// InboundMessageHandler will be called whenever a message is received
-type InboundMessageHandler func(*iso8583.Message)
-
 type ConnectionHandler struct {
 	rwc              io.ReadWriteCloser
 	headerSize       int
 	spec             *iso8583.MessageSpec
 	msgLenReader     MessageLengthReader
 	msgLenWriter     MessageLengthWriter
-	inMsgHandler     InboundMessageHandler
 	shutdownNotifier chan struct{}
 	reqCh            chan []byte
+	reqMsgCh         chan<- *iso8583.Message
+	resMsgCh         <-chan *iso8583.Message
 	wg               *sync.WaitGroup
 	isClosingMutex   sync.Mutex
 	isClosing        bool
@@ -47,14 +45,16 @@ func NewConnectionHandler(rwc io.ReadWriteCloser,
 	spec *iso8583.MessageSpec,
 	mlReader MessageLengthReader,
 	mlWriter MessageLengthWriter,
-	inMsgHandler InboundMessageHandler) (*ConnectionHandler, error) {
+	reqMsgCh chan<- *iso8583.Message,
+	resMsgCh <-chan *iso8583.Message) (*ConnectionHandler, error) {
 	ch := &ConnectionHandler{
 		rwc:              rwc,
 		headerSize:       headerSize,
 		spec:             spec,
 		msgLenReader:     mlReader,
 		msgLenWriter:     mlWriter,
-		inMsgHandler:     inMsgHandler,
+		reqMsgCh:         reqMsgCh,
+		resMsgCh:         resMsgCh,
 		shutdownNotifier: make(chan struct{}),
 		reqCh:            make(chan []byte),
 		wg:               &sync.WaitGroup{},
@@ -184,7 +184,7 @@ func (ch *ConnectionHandler) requestListener() {
 func (ch *ConnectionHandler) requestHandler(rawMsg []byte) {
 	msg := iso8583.NewMessage(ch.spec)
 	msg.Unpack(rawMsg[ch.headerSize:])
-	ch.inMsgHandler(msg)
+	ch.reqMsgCh <- msg
 }
 
 func (ch *ConnectionHandler) handleConnectionError(err error) {
