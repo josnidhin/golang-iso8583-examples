@@ -9,6 +9,7 @@ import (
 	"os"
 	"sync"
 	"text/tabwriter"
+	"time"
 
 	"github.com/moov-io/iso8583"
 	"github.com/moov-io/iso8583/field"
