@@ -103,6 +103,10 @@ func (s *Server) connListenLoop() {
 
 		logger.Printf("%s: new connection", fnName)
 
+		// aggresive keepalive on server to detect connection loss
+		conn.SetKeepAlive(true)
+		conn.SetKeepAlivePeriod(10 * time.Second)
+
 		connHandler, err := NewConnectionHandler(conn, Spec1HeaderSize, Spec1, MsgLenReader, MsgLenWriter, s.reqMsgCh, s.resMsgCh)
 		if err != nil {
 			logger.Fatalf("%s: error creating connection handler - %v", fnName, err)
