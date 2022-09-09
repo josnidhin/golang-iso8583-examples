@@ -9,6 +9,7 @@ import (
 	"io"
 	"sync"
 
+	"github.com/google/uuid"
 	"github.com/moov-io/iso8583"
 	"github.com/pkg/errors"
 )
@@ -26,6 +27,7 @@ type MessageLengthReader func(r io.Reader) (int, error)
 type MessageLengthWriter func(w io.Writer, length int) (int, error)
 
 type ConnectionHandler struct {
+	id               uuid.UUID
 	rwc              io.ReadWriteCloser
 	headerSize       int
 	spec             *iso8583.MessageSpec
@@ -47,7 +49,14 @@ func NewConnectionHandler(rwc io.ReadWriteCloser,
 	mlWriter MessageLengthWriter,
 	reqMsgCh chan<- *iso8583.Message,
 	resMsgCh <-chan *iso8583.Message) (*ConnectionHandler, error) {
+
+	id, err := uuid.NewRandom()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to unique connection id")
+	}
+
 	ch := &ConnectionHandler{
+		id:               id,
 		rwc:              rwc,
 		headerSize:       headerSize,
 		spec:             spec,
@@ -112,18 +121,18 @@ func (ch *ConnectionHandler) readLoop() {
 	for {
 		msgLen, err = ch.msgLenReader(reader)
 		if err != nil {
-			logger.Printf("%s: reading msg len failed - %v", fnName, err)
+			logger.Printf("%s (%s): reading msg len failed - %v", fnName, ch.id.String(), err)
 			break
 		}
 
 		rawMsg := make([]byte, msgLen)
 		_, err = io.ReadFull(reader, rawMsg)
 		if err != nil {
-			logger.Printf("%s: reading full msg failed - %v", fnName, err)
+			logger.Printf("%s (%s): reading full msg failed - %v", fnName, ch.id.String(), err)
 			break
 		}
 
-		logger.Printf("%s: raw message - %s", fnName, string(rawMsg))
+		logger.Printf("%s (%s): raw message - %s", fnName, ch.id.String(), string(rawMsg))
 
 		ch.reqCh <- rawMsg
 	}
@@ -142,7 +151,7 @@ func (ch *ConnectionHandler) requestListener() {
 		case rawMsg = <-ch.reqCh:
 			go ch.requestHandler(rawMsg)
 		case <-ch.shutdownNotifier:
-			logger.Printf("%s: shutdown initialized", fnName)
+			logger.Printf("%s (%s): shutdown initialized", fnName, ch.id.String())
 			return
 		}
 	}
@@ -163,7 +172,7 @@ func (ch *ConnectionHandler) sendLoop() {
 		case msg = <-ch.resMsgCh:
 			ch.sendHandler(msg)
 		case <-ch.shutdownNotifier:
-			logger.Printf("%s: shutdown initialized", fnName)
+			logger.Printf("%s (%s): shutdown initialized", fnName, ch.id.String())
 			return
 		}
 	}
@@ -178,7 +187,7 @@ func (ch *ConnectionHandler) sendHandler(msg *iso8583.Message) {
 	ch.isClosingMutex.Lock()
 	if ch.isClosing {
 		ch.isClosingMutex.Unlock()
-		logger.Printf("%s: connction handler is closing", fnName)
+		logger.Printf("%s (%s): connction handler is closing", fnName, ch.id.String())
 		return
 	}
 
@@ -186,26 +195,26 @@ func (ch *ConnectionHandler) sendHandler(msg *iso8583.Message) {
 
 	packed, err := msg.Pack()
 	if err != nil {
-		logger.Printf("%s: packing iso8583 message failed - %v", fnName, err)
+		logger.Printf("%s (%s): packing iso8583 message failed - %v", fnName, ch.id.String(), err)
 		return
 	}
 
 	var buf bytes.Buffer
 	_, err = ch.msgLenWriter(&buf, len(packed))
 	if err != nil {
-		logger.Printf("%s: writing msg header to buffer failed - %v", fnName, err)
+		logger.Printf("%s (%s): writing msg header to buffer failed - %v", fnName, ch.id.String(), err)
 		return
 	}
 
 	_, err = buf.Write(packed)
 	if err != nil {
-		logger.Printf("%s: writing packed msg to buffer failed - %v", fnName, err)
+		logger.Printf("%s (%s): writing packed msg to buffer failed - %v", fnName, ch.id.String(), err)
 		return
 	}
 
 	_, err = ch.rwc.Write(buf.Bytes())
 	if err != nil {
-		logger.Printf("%s: writing message to connection failed - %v", fnName, err)
+		logger.Printf("%s (%s): writing message to connection failed - %v", fnName, ch.id.String(), err)
 		return
 	}
 }
