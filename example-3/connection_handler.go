@@ -7,7 +7,10 @@ import (
 	"bufio"
 	"bytes"
 	"io"
+	"net"
+	"os"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/moov-io/iso8583"
@@ -17,6 +20,8 @@ import (
 var (
 	ClosedError = errors.New("connection handler closed")
 )
+
+var connReadTimeout = 5 * time.Second
 
 // MessageLengthReader reads message header from the provided reader interface
 // and returns message length
@@ -28,7 +33,7 @@ type MessageLengthWriter func(w io.Writer, length int) (int, error)
 
 type ConnectionHandler struct {
 	id               uuid.UUID
-	rwc              io.ReadWriteCloser
+	conn             net.Conn
 	headerSize       int
 	spec             *iso8583.MessageSpec
 	msgLenReader     MessageLengthReader
@@ -42,7 +47,7 @@ type ConnectionHandler struct {
 	isClosing        bool
 }
 
-func NewConnectionHandler(rwc io.ReadWriteCloser,
+func NewConnectionHandler(conn net.Conn,
 	headerSize int,
 	spec *iso8583.MessageSpec,
 	mlReader MessageLengthReader,
@@ -57,7 +62,7 @@ func NewConnectionHandler(rwc io.ReadWriteCloser,
 
 	ch := &ConnectionHandler{
 		id:               id,
-		rwc:              rwc,
+		conn:             conn,
 		headerSize:       headerSize,
 		spec:             spec,
 		msgLenReader:     mlReader,
@@ -90,7 +95,7 @@ func (ch *ConnectionHandler) Close() error {
 
 	ch.wg.Wait()
 
-	err := ch.rwc.Close()
+	err := ch.conn.Close()
 	if err != nil {
 		return errors.Wrap(err, "connection close error")
 	}
@@ -116,25 +121,42 @@ func (ch *ConnectionHandler) readLoop() {
 	var msgLen int
 	fnName := "ConnectionHandler.readLoop"
 
-	reader := bufio.NewReader(ch.rwc)
+	ch.wg.Add(1)
+	defer ch.wg.Done()
 
+	reader := bufio.NewReader(ch.conn)
+
+loop:
 	for {
-		msgLen, err = ch.msgLenReader(reader)
-		if err != nil {
-			logger.Printf("%s (%s): reading msg len failed - %v", fnName, ch.id.String(), err)
-			break
+		select {
+		case <-ch.shutdownNotifier:
+			logger.Printf("%s (%s): shutdown initialized", fnName, ch.id.String())
+			close(ch.reqCh)
+			break loop
+		default:
+			ch.conn.SetReadDeadline(time.Now().Add(connReadTimeout))
+
+			msgLen, err = ch.msgLenReader(reader)
+			if err != nil {
+				if errors.Is(err, os.ErrDeadlineExceeded) {
+					continue loop
+				}
+
+				logger.Printf("%s (%s): reading msg len failed - %v", fnName, ch.id.String(), err)
+				break loop
+			}
+
+			rawMsg := make([]byte, msgLen)
+			_, err = io.ReadFull(reader, rawMsg)
+			if err != nil {
+				logger.Printf("%s (%s): reading full msg failed - %v", fnName, ch.id.String(), err)
+				break loop
+			}
+
+			logger.Printf("%s (%s): raw message - %s", fnName, ch.id.String(), string(rawMsg))
+
+			ch.reqCh <- rawMsg
 		}
-
-		rawMsg := make([]byte, msgLen)
-		_, err = io.ReadFull(reader, rawMsg)
-		if err != nil {
-			logger.Printf("%s (%s): reading full msg failed - %v", fnName, ch.id.String(), err)
-			break
-		}
-
-		logger.Printf("%s (%s): raw message - %s", fnName, ch.id.String(), string(rawMsg))
-
-		ch.reqCh <- rawMsg
 	}
 
 	ch.handleConnectionError(err)
@@ -144,16 +166,10 @@ func (ch *ConnectionHandler) readLoop() {
 // requestHandler in a goroutine
 func (ch *ConnectionHandler) requestListener() {
 	var rawMsg []byte
-	fnName := "ConnectionHandler.requestListener"
 
 	for {
-		select {
-		case rawMsg = <-ch.reqCh:
-			go ch.requestHandler(rawMsg)
-		case <-ch.shutdownNotifier:
-			logger.Printf("%s (%s): shutdown initialized", fnName, ch.id.String())
-			return
-		}
+		rawMsg = <-ch.reqCh
+		go ch.requestHandler(rawMsg)
 	}
 }
 
@@ -212,7 +228,7 @@ func (ch *ConnectionHandler) sendHandler(msg *iso8583.Message) {
 		return
 	}
 
-	_, err = ch.rwc.Write(buf.Bytes())
+	_, err = ch.conn.Write(buf.Bytes())
 	if err != nil {
 		logger.Printf("%s (%s): writing message to connection failed - %v", fnName, ch.id.String(), err)
 		return
