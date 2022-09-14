@@ -21,7 +21,10 @@ var (
 	ClosedError = errors.New("connection handler closed")
 )
 
-var connReadTimeout = 5 * time.Second
+var (
+	connTimeout     = 30 * time.Second
+	connReadTimeout = 5 * time.Second
+)
 
 // MessageLengthReader reads message header from the provided reader interface
 // and returns message length
@@ -32,19 +35,20 @@ type MessageLengthReader func(r io.Reader) (int, error)
 type MessageLengthWriter func(w io.Writer, length int) (int, error)
 
 type ConnectionHandler struct {
-	id               uuid.UUID
-	conn             net.Conn
-	headerSize       int
-	spec             *iso8583.MessageSpec
-	msgLenReader     MessageLengthReader
-	msgLenWriter     MessageLengthWriter
-	shutdownNotifier chan struct{}
-	reqCh            chan []byte
-	reqMsgCh         chan<- *iso8583.Message
-	resMsgCh         <-chan *iso8583.Message
-	wg               *sync.WaitGroup
-	isClosingMutex   sync.Mutex
-	isClosing        bool
+	id                    uuid.UUID
+	conn                  net.Conn
+	headerSize            int
+	spec                  *iso8583.MessageSpec
+	msgLenReader          MessageLengthReader
+	msgLenWriter          MessageLengthWriter
+	deadlineExceededCount int
+	shutdownNotifier      chan struct{}
+	reqCh                 chan []byte
+	reqMsgCh              chan<- *iso8583.Message
+	resMsgCh              <-chan *iso8583.Message
+	wg                    *sync.WaitGroup
+	isClosingMutex        sync.Mutex
+	isClosing             bool
 }
 
 func NewConnectionHandler(conn net.Conn,
@@ -139,12 +143,23 @@ loop:
 			msgLen, err = ch.msgLenReader(reader)
 			if err != nil {
 				if errors.Is(err, os.ErrDeadlineExceeded) {
+					ch.deadlineExceededCount++
+					elapsed := time.Duration(ch.deadlineExceededCount) * connReadTimeout
+
+					if connTimeout < elapsed {
+						logger.Printf("%s (%s): connection timeout exceeded", fnName, ch.id.String())
+						break loop
+					}
+
+					logger.Printf("%s (%s): read dead line exceeded", fnName, ch.id.String())
 					continue loop
 				}
 
 				logger.Printf("%s (%s): reading msg len failed - %v", fnName, ch.id.String(), err)
 				break loop
 			}
+
+			ch.deadlineExceededCount = 0
 
 			rawMsg := make([]byte, msgLen)
 			_, err = io.ReadFull(reader, rawMsg)
@@ -244,5 +259,5 @@ func (ch *ConnectionHandler) handleConnectionError(err error) {
 
 	ch.isClosingMutex.Unlock()
 
-	ch.Close()
+	go ch.Close()
 }
