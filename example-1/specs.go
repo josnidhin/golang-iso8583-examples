@@ -55,6 +55,7 @@ var Spec1 *iso8583.MessageSpec = &iso8583.MessageSpec{
 			Description: "Systems Trace Audit Number (STAN)",
 			Enc:         encoding.ASCII,
 			Pref:        prefix.ASCII.Fixed,
+			Pad:         padding.Left('0'),
 		}),
 		12: field.NewString(&field.Spec{
 			Length:      6,
