@@ -19,14 +19,14 @@ const (
 )
 
 func main() {
-	var mode string
+	var address, mode string
+	flag.StringVar(&address, "address", ":8080", "set the server address")
 	flag.StringVar(&mode, "mode", serverMode, "choose the running mode eg: server, client")
 	flag.Parse()
 
 	mode = strings.ToLower(mode)
 
 	wg := &sync.WaitGroup{}
-	address := ":8080"
 	shutdownNotifier := make(chan struct{})
 
 	go func() {
