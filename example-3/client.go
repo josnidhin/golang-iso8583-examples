@@ -17,27 +17,31 @@ const (
 	fmHexStr = "009d49534f303234303030303535303230303532333838303030303841303830303031303831313030393934313830303030303030313030303030333133313032383432343838373539313032363431303331333033313330303030303034303139393131304d4f4e353047415a4f582020204e456469736f6e203132333520202020202020202020204d6f6e746572726579202020204e4c204d58343834"
 )
 
-var hexStr = emHexStr
-
-var sampleRawInput []byte
+var sampleEchoInput, sampleFinancialInput []byte
 
 func init() {
 	var err error
 	fnName := "client.init"
 
-	sampleRawInput, err = hex.DecodeString(hexStr)
+	sampleEchoInput, err = hex.DecodeString(emHexStr)
+	if err != nil {
+		logger.Panicf("%s: raw input creation failed - %v", fnName, err)
+	}
+
+	sampleFinancialInput, err = hex.DecodeString(fmHexStr)
 	if err != nil {
 		logger.Panicf("%s: raw input creation failed - %v", fnName, err)
 	}
 }
 
 type Client struct {
+	sampleData       []byte
 	network          string
 	tcpAddr          *net.TCPAddr
 	shutdownNotifier chan struct{}
 }
 
-func NewClient(address string) (*Client, error) {
+func NewClient(address string, msgType string) (*Client, error) {
 	network := "tcp"
 
 	tcpAddr, err := net.ResolveTCPAddr(network, address)
@@ -45,7 +49,19 @@ func NewClient(address string) (*Client, error) {
 		return nil, errors.Wrapf(err, "address resolve failed")
 	}
 
+	var sampleData []byte
+
+	switch msgType {
+	case echoMsgType:
+		sampleData = sampleEchoInput
+	case financialMsgType:
+		sampleData = sampleFinancialInput
+	default:
+		sampleData = sampleEchoInput
+	}
+
 	client := &Client{
+		sampleData:       sampleData,
 		network:          network,
 		tcpAddr:          tcpAddr,
 		shutdownNotifier: make(chan struct{}),
@@ -97,7 +113,7 @@ loop:
 		case <-c.shutdownNotifier:
 			return
 		case <-ticker.C:
-			_, err = tcpConn.Write(sampleRawInput)
+			_, err = tcpConn.Write(c.sampleData)
 			if err != nil {
 				logger.Printf("%s: error while writing to tcp connection - %v", fnName, err)
 				return

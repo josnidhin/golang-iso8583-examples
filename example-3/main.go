@@ -18,10 +18,16 @@ const (
 	serverMode = "server"
 )
 
+var (
+	echoMsgType      = "echo"
+	financialMsgType = "financial"
+)
+
 func main() {
-	var address, mode string
+	var address, mode, msgType string
 	flag.StringVar(&address, "address", ":8080", "set the server address")
 	flag.StringVar(&mode, "mode", serverMode, "choose the running mode eg: server, client")
+	flag.StringVar(&msgType, "msgtype", echoMsgType, "choose the fake msg to sent eg: echo, financial")
 	flag.Parse()
 
 	mode = strings.ToLower(mode)
@@ -62,7 +68,7 @@ func main() {
 		server.Start()
 
 	case clientMode:
-		client, err = NewClient(address)
+		client, err = NewClient(address, msgType)
 		if err != nil {
 			logger.Fatalf("%v", err)
 		}
