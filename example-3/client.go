@@ -5,6 +5,7 @@ package main
 
 import (
 	"encoding/hex"
+	"fmt"
 	"net"
 	"time"
 
@@ -14,7 +15,7 @@ import (
 
 const (
 	emHexStr = "004349534F30323131303030353530383030383232303030303030303030303030303034303030303030303030303030303030383231303833323136303135373935333031"
-	fmHexStr = "009d49534f303234303030303535303230303532333838303030303841303830303031303831313030393934313830303030303030313030303030333133313032383432343838373539313032363431303331333033313330303030303034303139393131304d4f4e353047415a4f582020204e456469736f6e203132333520202020202020202020204d6f6e746572726579202020204e4c204d58343834"
+	fmHexStr = "009d49534f303234303030303535303230303532333838303030303841303830303031303831313030393934313830303030303030313030303030333133313032383432343838373539313032363431303331333033313330303030303030303030303131304d4f4e353047415a4f582020204e456469736f6e203132333520202020202020202020204d6f6e746572726579202020204e4c204d58343834"
 )
 
 var sampleEchoInput, sampleFinancialInput []byte
@@ -35,6 +36,7 @@ func init() {
 }
 
 type Client struct {
+	msgType          string
 	sampleData       []byte
 	network          string
 	tcpAddr          *net.TCPAddr
@@ -61,6 +63,7 @@ func NewClient(address string, msgType string) (*Client, error) {
 	}
 
 	client := &Client{
+		msgType:          msgType,
 		sampleData:       sampleData,
 		network:          network,
 		tcpAddr:          tcpAddr,
@@ -107,12 +110,27 @@ loop:
 
 	go c.readResp(tcpConn)
 
+	var refNo int64 = 1
+
 	err = nil
 	for {
 		select {
 		case <-c.shutdownNotifier:
 			return
 		case <-ticker.C:
+			if c.msgType == financialMsgType {
+				refNoStr := fmt.Sprintf("%012d", refNo)
+
+				if len(refNoStr) > 12 {
+					logger.Printf("%s: refNo length greater than 12", fnName)
+					return
+				}
+
+				copy(c.sampleData[88:], []byte(refNoStr))
+
+				refNo++
+			}
+
 			_, err = tcpConn.Write(c.sampleData)
 			if err != nil {
 				logger.Printf("%s: error while writing to tcp connection - %v", fnName, err)
